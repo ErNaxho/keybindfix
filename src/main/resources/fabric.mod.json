@@ -3,7 +3,7 @@
   "id": "keybindfix",
   "version": "${version}",
   "name": "KeybindFix",
-  "description": "Fixes the issue where keyboard keys (not mouse) are not properly assigned to 'Use Item/Place Block' and 'Select Block' within inventory screens. Fixes MC-117771, MC-577 and MC-19433.",
+  "description": "Corrige bugs vanilla de Minecraft relacionados con asignar teclas de teclado (no ratón) a 'Usar Objeto/Colocar Bloque' y 'Seleccionar Bloque' dentro de pantallas de inventario. Arregla MC-117771, MC-577 y MC-19433.",
   "authors": [
     "Edurne"
   ],

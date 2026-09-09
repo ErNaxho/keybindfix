@@ -1,130 +1,181 @@
 # KeybindFix
 
-Fabric **client-side** mod for Minecraft **1.21.11** that fixes three vanilla bugs related to assigning keyboard keys (instead of mouse buttons) to **"Use Item / Place Block"** (`useKey`) and **"Pick Block"** (`pickItemKey`) inside any inventory screen (chests, furnaces, crafting tables, player inventory, dispensers, containers from other mods, etc.).
+Mod Fabric **client-side** para Minecraft **1.21.11** que corrige tres bugs
+vanilla relacionados con asignar teclas de teclado (en vez del ratón) a
+"Usar Objeto / Colocar Bloque" (`useKey`) y "Seleccionar Bloque"
+(`pickItemKey`), dentro de cualquier pantalla de inventario (cofres, hornos,
+mesa de crafteo, inventario del jugador, dispensadores, contenedores de
+otros mods, etc.).
 
-## Bugs it fixes
+## Bugs que arregla
 
-* **[MC-117771](https://bugs.mojang.com/browse/MC/issues/MC-117771)** — Pick Block assigned to a keyboard key does not fill multiple slots when "dragging".
+- **[MC-117771](https://bugs.mojang.com/browse/MC/issues/MC-117771)** —
+  Pick Block asignado a teclado no rellena varios slots al "arrastrar".
+- **[MC-577](https://bugs.mojang.com/browse/MC/issues/MC-577)** — Pick/Use
+  personalizados bloquean controles de inventario que no sean el bind por
+  defecto.
+- **[MC-19433](https://bugs.mojang.com/browse/MC/issues/MC-19433)** — No se
+  puede colocar un solo objeto (click derecho) cuando "Usar Objeto" está
+  remapeado a teclado, dentro de pantallas de inventario.
 
-* **[MC-577](https://bugs.mojang.com/browse/MC/issues/MC-577)** — Custom Pick/Use keybinds block inventory controls that aren't assigned to the default bind.
+## Cómo funciona (resumen técnico)
 
-* **[MC-19433](https://bugs.mojang.com/browse/MC/issues/MC-19433)** — You cannot place a single item (right-click) when "Use Item" is remapped to a keyboard key inside inventory screens.
+**Importante**: Minecraft ignora deliberadamente el estado "pulsado" de las
+keybinds de teclado mientras hay una pantalla (GUI) abierta — es un
+comportamiento vanilla intencionado, no un bug. Por eso una implementación
+basada en `KeyBinding#isPressed()` (como una versión anterior de este mod)
+**no funciona** dentro de cofres/inventarios.
 
-## How it works (technical overview)
+La solución correcta usa `ScreenKeyboardEvents` de Fabric API
+(`fabric-screen-api-v1`), la API pensada exactamente para recibir
+pulsaciones de teclado dentro de pantallas:
 
-**Important**: Minecraft deliberately ignores the "pressed" state of keyboard keybinds while a screen (GUI) is open — this is intentional vanilla behavior, not a bug. Therefore, an implementation based on `KeyBinding#isPressed()` (like an earlier version of this mod) **does not work** inside chests/inventories.
+1. Un mixin `HandledScreenAccessor` (solo `@Accessor`/`@Invoker`, sin
+   `@Inject`) expone `focusedSlot` (el slot bajo el cursor) y
+   `onMouseClick(Slot, int, int, SlotActionType)` (la misma lógica que
+   ejecuta un click de ratón real) desde fuera de `HandledScreen`.
+2. En `KeybindFixClient`, por cada `HandledScreen` que se abre
+   (`ScreenEvents.AFTER_INIT`), se registran:
+   - `ScreenKeyboardEvents.afterKeyPress`: si la tecla coincide con
+     `useKey`/`pickItemKey` y hay un slot bajo el cursor, llama a
+     `onMouseClick` con `button=1(right)/PICKUP` o `button=2(middle)/CLONE`
+     — arregla el click suelto (MC-19433, MC-577).
+   - `ScreenKeyboardEvents.afterKeyRelease`: limpia el estado de "arrastre".
+   - `ScreenEvents.afterRender`: mientras la tecla sigue "activa", cada
+     frame comprueba si el cursor entró en un slot nuevo y repite el click
+     ahí — arregla el arrastre multi-slot (MC-117771).
 
-The correct solution uses Fabric API's `ScreenKeyboardEvents` (`fabric-screen-api-v1`), the API specifically designed to receive keyboard input while screens are open:
+No se añade ninguna keybind ni menú de configuración nuevos — se reutilizan
+tal cual las keybinds vanilla ya existentes, como pediste (opción 1).
 
-1. A `HandledScreenAccessor` mixin (only `@Accessor`/`@Invoker`, with no `@Inject`) exposes `focusedSlot` (the slot under the cursor) and `onMouseClick(Slot, int, int, SlotActionType)` (the same logic executed by an actual mouse click) from outside `HandledScreen`.
+## ⚠️ Antes de compilar por primera vez
 
-2. In `KeybindFixClient`, for each `HandledScreen` that opens (`ScreenEvents.AFTER_INIT`), the following are registered:
+Minecraft 1.21.11 reescribió el sistema de input (nuevos records
+`KeyInput`, `Click`, `MouseButtonInfo` en `net.minecraft.client.input`).
+He verificado en las mappings Yarn oficiales de `1.21.11+build.4` que:
 
-   * `ScreenKeyboardEvents.afterKeyPress`: if the key matches `useKey`/`pickItemKey` and there is a slot under the cursor, calls `onMouseClick` with `button=1(right)/PICKUP` or `button=2(middle)/CLONE` — fixes the individual click (MC-19433, MC-577).
+- `HandledScreen.keyPressed(KeyInput)` / `keyReleased(KeyInput)` — firma
+  usada en este mod.
+- `GameOptions.useKey` / `pickItemKey` y `KeyBinding.matchesKey(KeyInput)` —
+  confirmados.
+- `HandledScreen.focusedSlot` y `onMouseClick(Slot, int, int, SlotActionType)`
+  — sin cambios desde hace muchas versiones.
+- `render(DrawContext, int, int, float)` — sin cambios.
 
-   * `ScreenKeyboardEvents.afterKeyRelease`: clears the "dragging" state.
-
-   * `ScreenEvents.afterRender`: while the key is still "active", each frame checks whether the cursor has moved onto a new slot and repeats the click there — fixes multi-slot dragging (MC-117771).
-
-No new keybinds or configuration menus are added — the mod reuses the existing vanilla keybinds exactly as requested (option 1).
-
-## ⚠️ Before compiling for the first time
-
-Minecraft 1.21.11 rewrote the input system (new `KeyInput`, `Click`, and `MouseButtonInfo` records in `net.minecraft.client.input`).
-
-I have verified in the official Yarn mappings for `1.21.11+build.4` that:
-
-* `HandledScreen.keyPressed(KeyInput)` / `keyReleased(KeyInput)` — signatures used by this mod.
-* `GameOptions.useKey` / `pickItemKey` and `KeyBinding.matchesKey(KeyInput)` — confirmed.
-* `HandledScreen.focusedSlot` and `onMouseClick(Slot, int, int, SlotActionType)` — unchanged for many versions.
-* `render(DrawContext, int, int, float)` — unchanged.
-
-Even so, **before the first actual build**, run:
+Aun así, **antes del primer build real**, ejecuta:
 
 ```bash
 ./gradlew genSources
 ```
 
-and open the generated `HandledScreen` class (in `build/loom-cache` or through your IDE after importing the project) to confirm that the exact signatures of `keyPressed`, `keyReleased`, and `render` match those used in the mixin. If a later Yarn build changes anything, you will only need to adjust the corresponding `@Inject` method signature.
+y abre la clase generada `HandledScreen` (en
+`build/loom-cache` o vía tu IDE tras importar el proyecto) para confirmar
+que las firmas exactas de `keyPressed`, `keyReleased` y `render` coinciden
+con las usadas en el mixin. Si algún build posterior de Yarn cambia algo,
+solo tendrás que ajustar la firma del método `@Inject` correspondiente.
 
-## ⚠️ Required preliminary step: generate the Gradle Wrapper
+## ⚠️ Paso previo obligatorio: generar el Gradle Wrapper
 
-This project **does not include the Gradle Wrapper** (`gradlew`, `gradlew.bat`, `gradle/wrapper/*`) because these are generated files and cannot be reliably created by hand. Generate it once using your globally installed Gradle **before compiling**:
+Este proyecto **no incluye el Gradle Wrapper** (`gradlew`, `gradlew.bat`,
+`gradle/wrapper/*`) porque son binarios y no se pueden generar a mano de
+forma fiable. Genéralo una vez, usando tu Gradle global instalado, **antes**
+de compilar:
 
 ```powershell
 gradle wrapper --gradle-version 9.7.1
 ```
 
-**Important**: Fabric Loom `1.14.10` requires Gradle with `plugin.api-version >= 9.2.0` — **it does not work with Gradle 8.x**, so use 9.7.1 (or any 9.2+ version), never an 8.x version.
+**Importante**: Fabric Loom `1.14.10` requiere Gradle con
+`plugin.api-version >= 9.2.0` — **no funciona con Gradle 8.x**, así que usa
+9.7.1 (o cualquier 9.2+), nunca una versión 8.x.
 
-From then on, always use `./gradlew` (or `gradlew.bat` on Windows) instead of your global `gradle`, so the Gradle version remains pinned and the build is reproducible:
+A partir de ahí, usa siempre `./gradlew` (o `gradlew.bat` en Windows) en vez
+de tu `gradle` global, para que la versión de Gradle quede fijada y el build
+sea reproducible:
 
 ```powershell
 .\gradlew.bat build
 ```
 
-## About the "Unsupported class file major version 69" (Java 25) error
+## Sobre el error "Unsupported class file major version 69" (Java 25)
 
-This error occurs if Gradle is running on JDK 25 with a version of Gradle that does not support it (Gradle 8.x or 9.0). With the wrapper already set to **9.7.1** (see above), this should not happen again, since full Java 25 support was added in Gradle 9.1.0. However, it is still **recommended to use JDK 21** to run Gradle in this project (see `org.gradle.java.home` in `gradle.properties`), because Loom, Mixin, and the internal decompilers (based on ASM) are designed and tested against Java 21, not 25 — using 25 could cause subtle errors later even if Gradle itself understands it.
+Este error aparece si Gradle se ejecuta sobre un JDK 25 con una versión de
+Gradle que no lo soporta (Gradle 8.x, o 9.0). Con el wrapper ya en
+**9.7.1** (ver arriba) esto no debería reaparecer, ya que el soporte
+completo de Java 25 llegó en Gradle 9.1.0. Aun así, **se recomienda seguir
+usando JDK 21** para ejecutar Gradle en este proyecto (ver
+`org.gradle.java.home` en `gradle.properties`), porque Loom, Mixin y los
+decompiladores internos (basados en ASM) están pensados y probados contra
+Java 21, no 25 — usar 25 podría dar errores sutiles más adelante aunque
+Gradle en sí ya lo entienda.
 
-If you change the `org.gradle.java.home` path or remove the line and this error appears again, stop the old daemons first:
+Si cambias la ruta de `org.gradle.java.home` o quitas la línea, y vuelve a
+salir este error, para los daemons viejos primero:
 
 ```powershell
 .\gradlew.bat --stop
 ```
 
-Then confirm with:
+y confirma con `.\gradlew.bat --version` que el "Daemon JVM" sea el 21.
 
-```powershell
-.\gradlew.bat --version
-```
+## Sobre el error "Unsupported unpick version"
 
-that the "Daemon JVM" is Java 21.
+Si ves este error, significa que la versión de **Fabric Loom** es demasiado
+antigua para el formato `unpick v3` que usa Minecraft 1.21.11. Este proyecto
+ya fija Loom en `1.14.10` en `build.gradle` (línea `id 'fabric-loom' version
+'1.14.10'`). Si aun así falla, comprueba en
+[fabricmc.net/develop](https://fabricmc.net/develop) si hay una versión de
+Loom más reciente y actualiza esa línea.
 
-## About the "Unsupported unpick version" error
+## Instalación (para jugar)
 
-If you see this error, it means the **Fabric Loom** version is too old for the `unpick v3` format used by Minecraft 1.21.11. This project already pins Loom to `1.14.10` in `build.gradle` (line `id 'fabric-loom' version '1.14.10'`). If it still fails, check [fabricmc.net/develop](https://fabricmc.net/develop) to see whether a newer Loom version is available and update that line.
+1. Instala **Fabric Loader** ≥ 0.18.4 para Minecraft 1.21.11.
+2. Descarga **Fabric API** para 1.21.11 y colócalo en `mods/`.
+3. Compila el mod (ver abajo) o coloca el `.jar` ya compilado en `mods/`.
+4. Lanza el perfil de Fabric 1.21.11.
 
-## Installation (for playing)
-
-1. Install **Fabric Loader** ≥ 0.18.4 for Minecraft 1.21.11.
-2. Download **Fabric API** for 1.21.11 and place it in `mods/`.
-3. Build the mod (see below) or place the already compiled `.jar` in `mods/`.
-4. Launch the Fabric 1.21.11 profile.
-
-## Build
+## Compilar
 
 ```bash
 ./gradlew build
 ```
 
-The resulting `.jar` appears at:
+El `.jar` resultante aparece en `build/libs/keybindfix-1.0.0.jar`.
 
-```text
-build/libs/keybindfix-1.0.0.jar
-```
+## Cómo probarlo
 
-## How to test it
+1. Abre **Opciones → Controles** y reasigna:
+   - "Usar Objeto / Colocar Bloque" a una tecla de teclado, p.ej. `Control`.
+   - "Seleccionar Bloque" a otra tecla de teclado, p.ej. `Alt`.
+2. **MC-19433**: abre un cofre, horno, mesa de crafteo o tu inventario, coge
+   una pila de un objeto y pulsa tu tecla de "Usar" sobre otro slot — debería
+   depositar solo una unidad, igual que un click derecho real.
+3. **MC-577**: repite la prueba anterior en distintos contenedores (horno,
+   dispensador, mesa de crafteo) para confirmar que no se bloquea en ningún
+   inventario.
+4. **MC-117771**: en modo creativo, con un objeto en el cursor, mantén
+   pulsada tu tecla de "Seleccionar Bloque" y mueve el ratón sobre varios
+   slots vacíos del inventario — deberían rellenarse todos, igual que al
+   mantener pulsado el click central.
 
-1. Open **Options → Controls** and remap:
+## Posibles problemas
 
-   * **"Use Item / Place Block"** to a keyboard key, e.g. `Control`.
-   * **"Pick Block"** to another keyboard key, e.g. `Alt`.
-
-2. **MC-19433**: open a chest, furnace, crafting table, or your inventory, pick up a stack of an item, and press your "Use" key over another slot — it should deposit only one item, just like a real right-click.
-
-3. **MC-577**: repeat the previous test in different containers (furnace, dispenser, crafting table) to confirm that it doesn't get blocked in any inventory.
-
-4. **MC-117771**: in Creative mode, with an item on your cursor, hold down your "Pick Block" key and move the mouse over several empty inventory slots — all of them should be filled, just like holding the middle mouse button.
-
-## Possible issues
-
-* **Compilation error in the mixin due to an incorrect signature**: `HandledScreenAccessor` only references `focusedSlot` and `onMouseClick`, two members that have been stable for many versions. If it still fails, run `genSources` (see above) to confirm the exact field/method name.
-
-* **Nothing happens when pressing the key**: check that the assigned key isn't already conflicting with another keybind (Minecraft displays a ⚠️ on the Controls screen).
-
-* **The click works but "dragging" doesn't (MC-117771)**: make sure you are physically holding the key down (not using a toggle), and that the player is in Creative mode, since `CLONE` is discarded in Survival by the server itself.
-
-* **"could not find any targets matching 'keyReleased'"**: this error came from an earlier version of the mod that did inject directly into `keyPressed`/`keyReleased`. The current version does not use `@Inject` on those methods at all (see above), so it should not occur again.
-
-* **Mods such as Mouse Tweaks**: if you use mods that also modify inventory click behavior (Mouse Tweaks, for example) and notice unusual behavior when combined with KeybindFix, let me know — it may require a small adjustment to mod ordering/priority.
+- **Error de compilación en el mixin por firma incorrecta**: `HandledScreenAccessor`
+  solo referencia `focusedSlot` y `onMouseClick`, dos miembros muy estables
+  desde hace muchas versiones. Si aun así falla, ejecuta `genSources` (ver
+  arriba) para confirmar el nombre exacto del campo/método.
+- **No pasa nada al pulsar la tecla**: comprueba que la tecla asignada no
+  esté ya en conflicto con otra keybind (Minecraft avisa con un ⚠️ en la
+  pantalla de Controles).
+- **Funciona el click pero no el "arrastre" (MC-117771)**: confirma que
+  sigues manteniendo la tecla físicamente pulsada (no es un toggle) y que el
+  jugador está en modo creativo, ya que `CLONE` se descarta en supervivencia
+  por el propio servidor.
+- **"could not find any targets matching 'keyReleased'"**: este error era
+  de una versión anterior del mod, que sí inyectaba directamente en
+  `keyPressed`/`keyReleased`. La versión actual no usa `@Inject` sobre esos
+  métodos en absoluto (ver arriba), así que no debería reaparecer.
+- **Mods como Mouse Tweaks**: si usas mods que también modifican el
+  comportamiento de clicks en inventarios (Mouse Tweaks, por ejemplo),
+  y notas algún comportamiento raro combinándolos con KeybindFix, avisa —
+  puede requerir un pequeño ajuste de orden/prioridad entre mods.
