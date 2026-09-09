@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "xyz.naxho.keybindfix.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "HandledScreenAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
