@@ -68,14 +68,23 @@ consequence:
 | Java version | 21 | **25** |
 | `HandledScreen` | `net.minecraft.client.gui.screen.ingame.HandledScreen` | `net.minecraft.client.gui.screens.inventory.AbstractContainerScreen` |
 | `HandledScreen#focusedSlot` | `focusedSlot` | `hoveredSlot` |
-| `HandledScreen#onMouseClick` | `onMouseClick(Slot, int, int, SlotActionType)` | `slotClicked(Slot, int, int, ClickType)` |
+| `HandledScreen#onMouseClick` | `onMouseClick(Slot, int, int, SlotActionType)` | `slotClicked(Slot, int, int, ContainerInput)` |
 | `Slot` | `net.minecraft.screen.slot.Slot`, field `id` | `net.minecraft.world.inventory.Slot`, field `index` |
-| `SlotActionType` | `net.minecraft.screen.slot.SlotActionType` | `net.minecraft.world.inventory.ClickType` (same constant names: `PICKUP`, `CLONE`, ...) |
+| `SlotActionType` | `net.minecraft.screen.slot.SlotActionType` | `net.minecraft.world.inventory.ContainerInput` (constants `PICKUP`, `CLONE`, ... — this is a **vanilla Mojang rename**, done in the same 26.1 jump that removed obfuscation, not a Fabric API rename) |
 | `MinecraftClient` | `net.minecraft.client.MinecraftClient` | `net.minecraft.client.Minecraft` |
 | `GameOptions` / `useKey` / `pickItemKey` | `net.minecraft.client.option.GameOptions` | `net.minecraft.client.Options`, fields `keyUse` / `keyPickItem` (same field names as GameOptions, only the class/package changed) |
 | `KeyBinding#matchesKey(...)` | `matchesKey(input)` | `KeyMapping#matches(input)` (input is still a single key-event object; the parameter type itself already changed in 1.21.9, before this migration) |
+| `ScreenEvents.afterRender` | `afterRender(screen).register((scrn, context, mouseX, mouseY, delta) -> ...)` | not used anymore — switched to `afterTick(screen).register(scrn -> ...)` (see caveat below) |
 | `fabricloader` / `minecraft` / `java` deps in `fabric.mod.json` | `>=0.18.4` / `~1.21.11` / `>=21` | `>=0.19.3` / `>=26.1.2` / `>=25` |
 | Mixin `compatibilityLevel` | `JAVA_21` | `JAVA_25` |
+
+> ⚠️ **One caveat I can't fully verify without a real build**: 26.2 rewrote most of the rendering pipeline (`GuiGraphics` → `GuiGraphicsExtractor`, `render()` → `extractRenderState()`, `renderBg`/`renderLabels` → `extractBackground`/`extractLabels`, `MultiBufferSource` → a new "submit-node" pipeline). Fabric API's `ScreenEvents.afterRender` is tied to that pipeline, and since our per-frame "did the cursor enter a new slot" check never actually used the graphics context it received, I switched it to `ScreenEvents.afterTick(screen)` instead — same idea, runs once per game tick instead of once per frame, and has zero dependency on whatever the render pipeline looks like this version. This sidesteps the whole rename mess rather than chasing it, and 20 checks/second is still instant from a player's perspective.
+>
+> The one thing I could **not** independently confirm against an official source is the exact shape of `ContainerInput` (whether it's a straight 1:1 rename of the old `ClickType`/`SlotActionType` enum with the same constants, or a wrapper record around it). The evidence I found (a migration changelog for a similar mod, plus a Kotlin migration blog post) both describe it as "just a renamed type used the same way," which is what the code above assumes (`ContainerInput.PICKUP`, `ContainerInput.CLONE`). If the build still fails specifically on `ContainerInput`, run:
+> ```bash
+> ./gradlew genSources
+> ```
+> and open the generated `ContainerInput` class (`build/loom-cache`, or via your IDE) to see its real constants/constructor — then adjust `ContainerInput.PICKUP`/`ContainerInput.CLONE` in `KeybindFixClient.java` and `AbstractContainerScreenAccessor.java` accordingly. I'd rather flag this openly than pretend I decompiled the real jar.
 
 Fabric API itself was **not** renamed for the classes this mod uses
 (`ScreenEvents`, `ScreenKeyboardEvents`, `KeyMappingHelper` aren't touched
