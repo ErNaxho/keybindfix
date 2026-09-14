@@ -1,5 +1,13 @@
 plugins {
-	id 'fabric-loom' version '1.14.10'
+	// A partir de 26.1, Loom expone un plugin id nuevo para versiones NO
+	// ofuscadas de Minecraft: "net.fabricmc.fabric-loom". El id antiguo
+	// "fabric-loom" se mantiene solo por compatibilidad con versiones
+	// ofuscadas (1.21.11 e inferiores) y con este mod ya no aplica.
+	// El bloque plugins{} se resuelve antes de que el resto del script
+	// tenga acceso a gradle.properties, así que aquí la versión va SIEMPRE
+	// como literal fijo (no se puede interpolar "${project.loom_version}").
+	// Si subes de versión, cámbiala aquí a mano.
+	id 'net.fabricmc.fabric-loom' version '1.16.2'
 	id 'maven-publish'
 }
 
@@ -19,13 +27,18 @@ loom {
 }
 
 dependencies {
-	// Minecraft y mappings (Yarn) para 1.21.11
+	// Minecraft 26.1+ ya no está ofuscado, así que Loom no necesita (ni
+	// acepta) una dependencia "mappings": el propio artefacto de Mojang
+	// trae los nombres reales de clases/métodos/campos.
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
 
-	// Loader y Fabric API
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+	// Loader y Fabric API. IMPORTANTE: en 26.1+ las dependencias de mods
+	// ya NO se remapean (el juego no está ofuscado), así que se usan las
+	// configuraciones estándar de Gradle ("implementation") en vez de las
+	// variantes "mod*" ("modImplementation", "modApi", etc.), que quedan
+	// reservadas para versiones ofuscadas de Minecraft.
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }
 
 processResources {
@@ -39,15 +52,19 @@ processResources {
 
 java {
 	withSourcesJar()
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+	// Minecraft 26.1+ requiere Java 25.
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
 }
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.encoding = "UTF-8"
-	it.options.release = 21
+	it.options.release = 25
 }
 
+// En 26.1+ ya no existe un jar "intermedio" que haya que remapear a
+// nombres oficiales (el juego ya usa nombres oficiales): la tarea
+// "remapJar" desaparece y el jar final se produce directamente con "jar".
 jar {
 	from("LICENSE") {
 		rename { "${it}_${project.archivesBaseName}" }
