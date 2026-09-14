@@ -2,162 +2,172 @@
 
 # KeybindFix
 
-**A tiny client-side Fabric mod that fixes three long-standing vanilla bugs**
-**around keyboard-bound "Use Item" and "Pick Block" in inventory screens.**
+*A small Fabric mod that fixes an annoying vanilla quirk with keyboard-bound inventory keys.*
 
 ![Minecraft](https://img.shields.io/badge/Minecraft-26.1.2%20%7C%2026.2-3b8526?logo=minecraft&logoColor=white)
 ![Fabric](https://img.shields.io/badge/Loader-Fabric-dbb69b)
-![Java](https://img.shields.io/badge/Java-25-orange?logo=openjdk&logoColor=white)
-![Side](https://img.shields.io/badge/Environment-Client--side%20only-blue)
+![Client-side](https://img.shields.io/badge/Environment-Client--side%20only-blue)
 ![License](https://img.shields.io/badge/License-MIT-informational)
 
 </div>
 
 ---
 
-## What is this?
+## What this mod does
 
-If you rebind **"Use Item / Place Block"** or **"Pick Block"** away from the
-mouse and onto a keyboard key, Minecraft's own inventory screens (chests,
-furnaces, crafting tables, your own inventory, and containers added by other
-mods) start behaving inconsistently. KeybindFix makes those keys behave
-**exactly like their default mouse buttons** inside any inventory screen —
-nothing more, nothing less. No new keybind, no config screen, no dependency
-beyond Fabric API.
+Inside any inventory screen — chests, furnaces, crafting tables, your own
+inventory, dispensers, containers from other mods — KeybindFix makes the
+**"Use Item / Place Block"** and **"Pick Block"** keybinds work correctly
+when they're bound to a keyboard key instead of the mouse:
 
-## Bugs fixed
-
-| Ticket | Problem |
-|---|---|
-| [MC-19433](https://bugs.mojang.com/browse/MC/issues/MC-19433) | Can't place a single item (right-click behavior) when "Use Item" is bound to a keyboard key, inside inventory screens. |
-| [MC-577](https://bugs.mojang.com/browse/MC/issues/MC-577) | Custom Pick/Use keybinds get ignored for inventory actions other than the default mouse bind. |
-| [MC-117771](https://bugs.mojang.com/browse/MC/issues/MC-117771) | Holding "Pick Block" and dragging the cursor doesn't fill multiple slots, unlike holding the middle mouse button. |
+- Pressing "Use" over a slot places a single item, same as a real
+  right-click.
+- Pressing "Pick Block" over a slot clones the stack, same as a real
+  middle-click.
+- Holding either key down and moving the cursor across multiple slots
+  repeats the click on each new slot, same as holding the corresponding
+  mouse button and dragging.
 
 ## Requirements
 
-- **Minecraft** 26.1.2 or 26.2
-- **Fabric Loader** ≥ 0.19.3
-- **Fabric API** (matching your Minecraft version)
-- **Java** 25 to run the game
+- Minecraft 26.1.2 or 26.2
+- Fabric Loader 0.19.3 or newer
+- Fabric API (matching version)
+- Java 25 to run the game
+
+## Downloads
+
+- **Modrinth:** [link here]
+- **CurseForge:** [link here]
+- **GitHub Releases:** [Releases](../../releases)
+
+> *(Fill in the store links once the mod is published — for now, the
+> GitHub Releases page is the source of truth for jars.)*
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.1.2 or 26.2.
-2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for the same version and drop it in `mods/`.
-3. Download `keybindfix-<version>.jar` from the [Releases](../../releases) page and drop it in `mods/` too.
-4. Launch the game with the matching Fabric profile.
+1. Install [Fabric Loader](https://fabricmc.net/use/) for your Minecraft version.
+2. Install Fabric API for the same version and drop it in your `mods` folder.
+3. Download the KeybindFix jar from one of the links above and drop it in `mods` too.
+4. Launch the game.
 
-## How it works
+There's nothing to configure — it works as soon as it's installed.
 
-Minecraft deliberately ignores the "held down" state of a keyboard keybind
-while an inventory screen is open — that's intentional vanilla behavior, not
-a bug, so polling `KeyMapping#isDown()` from inside a screen doesn't work.
-
-KeybindFix instead hooks into `ScreenKeyboardEvents`, the Fabric API built
-specifically for reacting to key presses while a screen is open:
-
-1. An accessor-only mixin (`@Accessor`/`@Invoker`, no `@Inject`) exposes the
-   slot currently under the cursor and the same internal method a real
-   mouse click runs, from `AbstractContainerScreen`.
-2. On every inventory screen that opens, KeybindFix listens for the "Use"
-   and "Pick Block" keys and replays the equivalent click (`PICKUP` /
-   `CLONE`) on the hovered slot.
-3. While the key stays held, a per-tick check repeats the click whenever the
-   cursor enters a new slot — this is what fixes the drag-fill behavior.
-
-No vanilla method is overridden or replaced — the mod purely observes key
-events and reuses existing, untouched game logic to perform the click.
-
-## Building from source
+## Building from Source
 
 ```bash
 git clone <this-repo-url>
 cd keybindfix
-gradle wrapper --gradle-version 9.7.1   # first time only, see note below
+gradle wrapper --gradle-version 9.7.1   # only the first time, see note below
 ./gradlew build
 ```
 
-The compiled jar appears at `build/libs/keybindfix-<version>.jar`.
+Your jar shows up at `build/libs/keybindfix-<version>.jar`.
 
-> **Note:** the Gradle Wrapper binaries aren't tracked in this repo. Run
-> `gradle wrapper --gradle-version 9.7.1` once with your own Gradle
-> installation before the first build; every build afterwards should go
-> through `./gradlew` (or `gradlew.bat`), never a global `gradle` install,
-> so the version stays pinned. Gradle needs to run on **JDK 25**.
+This repo doesn't track the Gradle Wrapper binaries, so the first time you
+clone it you'll need to generate them yourself with whatever Gradle you
+already have installed. After that, always build through `./gradlew` (or
+`gradlew.bat` on Windows) rather than a global `gradle` — that's what
+keeps everyone building with the exact same Gradle version. Gradle itself
+needs to run on JDK 25 for this to work.
 
-## Testing checklist
+## Getting Help
 
-- [ ] Rebind "Use Item / Place Block" and "Pick Block" to keyboard keys in **Options → Controls**.
-- [ ] **MC-19433**: pick up a stack, press "Use" over another slot → deposits exactly one item.
-- [ ] **MC-577**: repeat across chests, furnaces, dispensers, crafting tables.
-- [ ] **MC-117771**: in Creative, hold "Pick Block" and drag over several empty slots → all get filled.
+If pressing the key does nothing at all, double check it's not already
+bound to something else — Minecraft shows a little warning icon in
+Controls when there's a conflict.
 
-## Troubleshooting
+If clicking works but dragging to fill multiple slots doesn't, make sure
+you're actually holding the key down (not toggling it) and that you're in
+Creative mode — the server discards those particular clicks in Survival
+on purpose, that's vanilla behavior and not something this mod can change.
 
-- **Nothing happens when pressing the key** — check the key isn't already
-  bound elsewhere; Minecraft flags conflicts with a ⚠️ in Controls.
-- **Click works but drag doesn't** — make sure the key is actually held
-  down (not a toggle) and that you're in Creative mode; `CLONE` clicks are
-  discarded in Survival by the server itself.
-- **Conflicts with other inventory mods** (e.g. Mouse Tweaks) — please open
-  an issue with the other mod's name; it may just need a small
-  load-order/priority tweak.
+If you're running another mod that also messes with inventory clicks
+(Mouse Tweaks is the usual suspect) and see odd behavior combining them,
+please [open an issue](../../issues) with both mod versions listed — it's
+usually just a load-order thing.
+
+For anything else, [open an issue](../../issues) with your Minecraft
+version, Fabric Loader version, and the log from `.minecraft/logs/latest.log`.
+
+## Join the community
+
+- **Discord:** [link here]
+- **Issues & feature requests:** [GitHub Issues](../../issues)
+
+---
 
 <details>
-<summary><strong>Development notes: mappings, versions, and internals</strong> (click to expand)</summary>
+<summary><strong>For contributors: mappings, versions, and how it works internally</strong></summary>
 
-### Toolchain
+<br>
 
-- Fabric Loom `1.16.2`, plugin id `net.fabricmc.fabric-loom` (the id for
-  **unobfuscated** Minecraft; the classic `fabric-loom` id is only for
-  1.21.11 and earlier).
-- No `mappings` dependency — 26.1+ ships Mojang's official names directly,
-  no obfuscation, no Yarn.
-- Regular `implementation`/`api` Gradle configs instead of
-  `modImplementation`/`modApi` (nothing gets remapped anymore).
-- `jar` produces the final artifact directly — there's no more
-  intermediate un-remapped jar, so `remapJar` is gone.
-- Java 25 throughout: Gradle's JVM, `sourceCompatibility`/
-  `targetCompatibility`, and the Mixin `compatibilityLevel` all need to
-  agree on `JAVA_25`.
+### Why this needs a mod at all
 
-### One jar, two Minecraft versions
+Minecraft *deliberately* stops listening to whether a keyboard key is
+"held down" the moment an inventory screen opens — that's intentional, or
+things like walking or attacking would fire weirdly while a chest is open
+— but it also means the naive fix (poll the key every frame) never works
+once you're inside a GUI. This is the root cause behind
+[MC-19433](https://bugs.mojang.com/browse/MC/issues/MC-19433),
+[MC-577](https://bugs.mojang.com/browse/MC/issues/MC-577), and
+[MC-117771](https://bugs.mojang.com/browse/MC/issues/MC-117771).
 
-This project builds against **26.2** but declares `"minecraft": ">=26.1.2"`
-in `fabric.mod.json`. KeybindFix only touches slot/click/keybind APIs that
-are identical between 26.1.2 and 26.2 — the headline change in 26.2 is an
-optional Vulkan rendering backend this mod never touches — so one jar
-should cover both. If a future build ever throws a
-`NoSuchMethodError`/`NoSuchFieldError` on one of the classes below when run
-on 26.1.2 specifically, build a second jar pinned to
-`minecraft_version=26.1.2` / the matching Fabric API build and publish it
-as a separate release asset.
+KeybindFix hooks directly into Fabric's screen-keyboard events, which *do*
+fire correctly while a screen is open. When it sees "Use" or "Pick Block"
+pressed over a slot, it triggers the exact same internal click logic the
+game already runs for a real mouse click — same code path, same result.
+While the key stays held, it also checks which slot the cursor is over on
+every game tick, so dragging across slots keeps clicking each new one.
 
-### Yarn (1.21.11) → official mappings (26.1.2 / 26.2)
+There's a small accessor-only mixin (`@Accessor`/`@Invoker`, no
+`@Inject`) involved to reach two members of the inventory screen class
+that aren't normally exposed to other mods — the hovered slot, and the
+internal click method — but nothing is overridden or replaced.
 
-| Old (Yarn) | New (official) |
-|---|---|
-| `net.minecraft.client.gui.screen.ingame.HandledScreen` | `net.minecraft.client.gui.screens.inventory.AbstractContainerScreen` |
-| `HandledScreen#focusedSlot` | `AbstractContainerScreen#hoveredSlot` |
-| `onMouseClick(Slot, int, int, SlotActionType)` | `slotClicked(Slot, int, int, ContainerInput)` |
-| `net.minecraft.screen.slot.Slot`, field `id` | `net.minecraft.world.inventory.Slot`, field `index` |
-| `net.minecraft.screen.slot.SlotActionType` | `net.minecraft.world.inventory.ContainerInput` (vanilla rename, same constants: `PICKUP`, `CLONE`, ...) |
-| `net.minecraft.client.MinecraftClient` | `net.minecraft.client.Minecraft` |
-| `net.minecraft.client.option.GameOptions` | `net.minecraft.client.Options` (fields `keyUse`/`keyPickItem` unchanged) |
-| `KeyBinding#matchesKey(input)` | `KeyMapping#matches(input)` |
-| `ScreenEvents.afterRender(screen)` | replaced with `ScreenEvents.afterTick(screen)` — this mod never used the render context, so it moved off the (heavily reworked, in 26.2) render pipeline entirely and onto the tick loop instead |
+### Porting from 1.21.11 to 26.1.2 / 26.2
 
-`ContainerInput` is assumed to keep the same constant names as the old
-`ClickType`/`SlotActionType` enum it replaces, based on two independent
-migration write-ups for other mods; it was not verified against a
-decompiled 26.2 jar. If a build ever fails specifically on
-`ContainerInput`, run `./gradlew genSources` and check the generated class
-under `build/loom-cache`.
+This mod was originally written for 1.21.11 and later ported. That jump
+is bigger than it looks, because 26.1 is the version where Mojang stopped
+shipping an obfuscated jar and switched to their own official names
+directly — no more Yarn, no more remapping step. Worth knowing if you're
+touching this code:
 
-Fabric API's own classes used here (`ScreenEvents`, `ScreenKeyboardEvents`)
-were **not** renamed in this jump — only vanilla-facing names changed, as
-part of Fabric's move from Yarn to Mojang's official mappings. Full list:
-[Fabric API 26.1 porting guide](https://docs.fabricmc.net/26.1.2/develop/porting/fabric-api).
+- Loom uses the plugin id `net.fabricmc.fabric-loom` now (a separate
+  legacy id exists for pre-26.1, obfuscated versions), there's no
+  `mappings` dependency anymore, and mod dependencies use the plain
+  `implementation`/`api` configs instead of `modImplementation`/`modApi`
+  since nothing needs remapping. The build produces the final jar
+  straight from `jar` — `remapJar` is gone.
+- Everything needs to agree on Java 25: Gradle's own JVM, the compiler's
+  source/target compatibility, and the Mixin `compatibilityLevel`.
+- A bunch of classes got renamed as part of the same jump: `HandledScreen`
+  is now `AbstractContainerScreen`, `MinecraftClient` is `Minecraft`,
+  `GameOptions` is `Options`, and the old `SlotActionType`/`ClickType`
+  enum became `ContainerInput` (same constants — `PICKUP`, `CLONE`, etc.
+  — just a new name). None of that is Fabric API's doing, it's Mojang's
+  own official mappings replacing Yarn's community names.
+- Fabric API's `ScreenEvents.afterRender` also got dropped in favor of
+  `ScreenEvents.afterTick` here — not because it disappeared, but because
+  26.2 rewrote a good chunk of the rendering pipeline
+  (`GuiGraphics` → `GuiGraphicsExtractor`, among other things) and this
+  mod never actually used the render context it was handed anyway. Moving
+  to a per-tick check instead of per-frame sidesteps all of that, and
+  nobody can tell the difference in practice.
+
+One honest caveat: I couldn't fully verify `ContainerInput`'s exact shape
+against a decompiled jar, just against a couple of other mods' migration
+notes that describe it as a drop-in rename. If a build ever fails
+specifically there, `./gradlew genSources` and checking the generated
+class under `build/loom-cache` will tell you for sure.
+
+This project builds against 26.2 but declares compatibility down to
+26.1.2 in `fabric.mod.json`, since nothing this mod touches changed
+between those two versions — the only headline change in 26.2 is an
+optional Vulkan renderer this mod never goes near. If that ever turns out
+to be wrong for some future patch, building a second jar pinned to
+26.1.2's Fabric API build and publishing it separately is the standard
+fix.
 
 </details>
 
