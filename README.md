@@ -1,10 +1,13 @@
 # KeybindFix
 
-A **client-side** Fabric mod for Minecraft **1.21.11** that fixes three
-vanilla bugs related to binding keyboard keys (instead of the mouse) to
-"Use Item / Place Block" (`useKey`) and "Pick Block" (`pickItemKey`),
+A **client-side** Fabric mod for Minecraft **26.1.2 / 26.2** that fixes
+three vanilla bugs related to binding keyboard keys (instead of the mouse)
+to "Use Item / Place Block" (`keyUse`) and "Pick Block" (`keyPickItem`),
 inside any inventory screen (chests, furnaces, crafting tables, the player
 inventory, dispensers, containers from other mods, etc.).
+
+> Migrated from the 1.21.11 release. See "Migration notes" below for what
+> changed and why.
 
 ## Bugs fixed
 
@@ -22,22 +25,22 @@ inventory, dispensers, containers from other mods, etc.).
 **Important**: Minecraft deliberately ignores the "pressed" state of
 keyboard keybinds while a screen (GUI) is open — this is intentional
 vanilla behavior, not a bug. Because of this, an implementation based on
-`KeyBinding#isPressed()` (like an earlier version of this mod) **does not
+`KeyMapping#isDown()` (like an earlier version of this mod) **does not
 work** inside chests/inventories.
 
 The correct solution uses `ScreenKeyboardEvents` from Fabric API
 (`fabric-screen-api-v1`), the API designed exactly for receiving key
 presses inside screens:
 
-1. A `HandledScreenAccessor` mixin (only `@Accessor`/`@Invoker`, no
-   `@Inject`) exposes `focusedSlot` (the slot under the cursor) and
-   `onMouseClick(Slot, int, int, SlotActionType)` (the same logic a real
-   mouse click runs) from outside `HandledScreen`.
-2. In `KeybindFixClient`, for every `HandledScreen` that opens
+1. An `AbstractContainerScreenAccessor` mixin (only `@Accessor`/`@Invoker`,
+   no `@Inject`) exposes `hoveredSlot` (the slot under the cursor) and
+   `slotClicked(Slot, int, int, ClickType)` (the same logic a real mouse
+   click runs) from outside `AbstractContainerScreen`.
+2. In `KeybindFixClient`, for every `AbstractContainerScreen` that opens
    (`ScreenEvents.AFTER_INIT`), the following are registered:
    - `ScreenKeyboardEvents.afterKeyPress`: if the key matches
-     `useKey`/`pickItemKey` and there's a slot under the cursor, calls
-     `onMouseClick` with `button=1(right)/PICKUP` or
+     `keyUse`/`keyPickItem` and there's a slot under the cursor, calls
+     `slotClicked` with `button=1(right)/PICKUP` or
      `button=2(middle)/CLONE` — fixes the single-click case (MC-19433,
      MC-577).
    - `ScreenKeyboardEvents.afterKeyRelease`: clears the "drag" state.
@@ -48,32 +51,57 @@ presses inside screens:
 No new keybind or config menu is added — the mod just reuses the existing
 vanilla keybinds as-is, as requested (option 1).
 
-## ⚠️ Before compiling for the first time
+## Migration notes (1.21.11 → 26.1.2 / 26.2)
 
-Minecraft 1.21.11 reworked the input system (new `KeyInput`, `Click`,
-`MouseButtonInfo` records in `net.minecraft.client.input`). I verified in
-the official Yarn mappings for `1.21.11+build.4` that:
+Minecraft 26.1 was the version where Mojang stopped obfuscating the game
+and switched to their own year-based version numbering
+(`26.1`, `26.1.1`, `26.1.2`, `26.2`, ...). This is a **major** toolchain
+change, not just a version bump. What changed in this mod as a direct
+consequence:
 
-- `HandledScreen.keyPressed(KeyInput)` / `keyReleased(KeyInput)` — signature
-  used in this mod.
-- `GameOptions.useKey` / `pickItemKey` and `KeyBinding.matchesKey(KeyInput)`
-  — confirmed.
-- `HandledScreen.focusedSlot` and
-  `onMouseClick(Slot, int, int, SlotActionType)` — unchanged for many
-  versions.
-- `render(DrawContext, int, int, float)` — unchanged.
+| Area | 1.21.11 (Yarn) | 26.1.2 / 26.2 (official mappings) |
+|---|---|---|
+| Loom plugin id | `fabric-loom` | `net.fabricmc.fabric-loom` (new id for **unobfuscated** MC; the old id stays only for ≤1.21.11) |
+| `mappings` dependency in `build.gradle` | required (`net.fabricmc:yarn:...`) | **removed** — the game itself already ships official names |
+| Mod dependency configs | `modImplementation`, `modApi`, ... | `implementation`, `api`, ... (no remapping needed anymore) |
+| Jar task | `remapJar` | `jar` (no intermediate un-remapped jar) |
+| Java version | 21 | **25** |
+| `HandledScreen` | `net.minecraft.client.gui.screen.ingame.HandledScreen` | `net.minecraft.client.gui.screens.inventory.AbstractContainerScreen` |
+| `HandledScreen#focusedSlot` | `focusedSlot` | `hoveredSlot` |
+| `HandledScreen#onMouseClick` | `onMouseClick(Slot, int, int, SlotActionType)` | `slotClicked(Slot, int, int, ClickType)` |
+| `Slot` | `net.minecraft.screen.slot.Slot`, field `id` | `net.minecraft.world.inventory.Slot`, field `index` |
+| `SlotActionType` | `net.minecraft.screen.slot.SlotActionType` | `net.minecraft.world.inventory.ClickType` (same constant names: `PICKUP`, `CLONE`, ...) |
+| `MinecraftClient` | `net.minecraft.client.MinecraftClient` | `net.minecraft.client.Minecraft` |
+| `GameOptions` / `useKey` / `pickItemKey` | `net.minecraft.client.option.GameOptions` | `net.minecraft.client.Options`, fields `keyUse` / `keyPickItem` (same field names as GameOptions, only the class/package changed) |
+| `KeyBinding#matchesKey(...)` | `matchesKey(input)` | `KeyMapping#matches(input)` (input is still a single key-event object; the parameter type itself already changed in 1.21.9, before this migration) |
+| `fabricloader` / `minecraft` / `java` deps in `fabric.mod.json` | `>=0.18.4` / `~1.21.11` / `>=21` | `>=0.19.3` / `>=26.1.2` / `>=25` |
+| Mixin `compatibilityLevel` | `JAVA_21` | `JAVA_25` |
 
-Even so, **before the first real build**, run:
+Fabric API itself was **not** renamed for the classes this mod uses
+(`ScreenEvents`, `ScreenKeyboardEvents`, `KeyMappingHelper` aren't touched
+here) — only vanilla-facing renames applied, driven by the switch from
+Yarn to Mojang's official names. If you're curious about the full list of
+Fabric API renames for 26.1, see the [official porting
+guide](https://docs.fabricmc.net/26.1.2/develop/porting/fabric-api).
 
-```bash
-./gradlew genSources
-```
+### About targeting both 26.1.2 and 26.2 with one jar
 
-and open the generated `HandledScreen` class (under `build/loom-cache`, or
-via your IDE after importing the project) to confirm that the exact
-signatures of `keyPressed`, `keyReleased`, and `render` match the ones used
-in the mixin. If a later Yarn build changes something, you'll only need to
-adjust the signature of the corresponding `@Inject` method.
+This project compiles against **26.2** (the newest stable release), but
+declares `"minecraft": ">=26.1.2"` in `fabric.mod.json` instead of pinning
+to `26.2` only. This is intentional: KeybindFix only touches screen/input/
+inventory APIs that did **not** change between 26.1.2 and 26.2 — the
+headline change in 26.2 is the new optional Vulkan rendering backend,
+which this mod never touches. In practice a single build should work
+unmodified on both versions.
+
+If you ever see a `NoSuchFieldError`/`NoSuchMethodError` mentioning
+`AbstractContainerScreen`, `Slot` or `ClickType` when running on 26.1.2
+specifically, that would mean Mojang changed one of those members between
+26.1.2 and 26.2 — in that case, build a second jar with
+`minecraft_version=26.1.2` and `fabric_version=0.152.1+26.1.2` in
+`gradle.properties` (check [fabricmc.net/develop](https://fabricmc.net/develop)
+for the exact current numbers) and publish it as a separate file, the same
+way most Fabric mods do for major version jumps.
 
 ## ⚠️ Required first step: generate the Gradle Wrapper
 
@@ -86,7 +114,7 @@ installed Gradle, **before** compiling:
 gradle wrapper --gradle-version 9.7.1
 ```
 
-**Important**: Fabric Loom `1.14.10` requires Gradle with
+**Important**: Fabric Loom `1.16.2` requires Gradle with
 `plugin.api-version >= 9.2.0` — **it does not work with Gradle 8.x**, so
 use 9.7.1 (or any 9.2+), never an 8.x version.
 
@@ -98,42 +126,36 @@ is reproducible:
 .\gradlew.bat build
 ```
 
-## About the "Unsupported class file major version 69" error (Java 25)
+## About Java 25
 
-This error shows up if Gradle runs on a JDK 25 with a Gradle version that
-doesn't support it (Gradle 8.x, or 9.0). With the wrapper already on
-**9.7.1** (see above) this shouldn't happen again, since full Java 25
-support landed in Gradle 9.1.0. Even so, **it's still recommended to use
-JDK 21** to run Gradle in this project (see `org.gradle.java.home` in
-`gradle.properties`), because Loom, Mixin, and the internal decompilers
-(ASM-based) are built and tested against Java 21, not 25 — using 25 could
-cause subtle issues down the line even though Gradle itself now understands
-it.
+Minecraft 26.1+ requires **Java 25** end-to-end: the JDK Gradle runs on
+(`org.gradle.java.home` in `gradle.properties`), the `sourceCompatibility`/
+`targetCompatibility` in `build.gradle`, and the Mixin
+`compatibilityLevel` in `keybindfix.mixins.json` all need to agree on 25.
+Unlike the 1.21.11 era (where JDK 21 was recommended for the *build*
+tooling even though the target bytecode was 21), by 26.1 the whole
+toolchain (Loom, Mixin, ASM) already has first-class Java 25 support, so
+there's no longer a reason to keep a separate, older JDK just for Gradle
+itself.
 
-If you change the `org.gradle.java.home` path or remove that line, and
-this error comes back, stop the old daemons first:
+If you see class-file-version errors after switching JDKs, stop the old
+Gradle daemons first:
 
 ```powershell
 .\gradlew.bat --stop
 ```
 
-and confirm with `.\gradlew.bat --version` that the "Daemon JVM" is 21.
-
-## About the "Unsupported unpick version" error
-
-If you see this error, it means your **Fabric Loom** version is too old
-for the `unpick v3` format used by Minecraft 1.21.11. This project already
-pins Loom to `1.14.10` in `build.gradle` (the line
-`id 'fabric-loom' version '1.14.10'`). If it still fails, check
-[fabricmc.net/develop](https://fabricmc.net/develop) for a newer Loom
-version and update that line.
+and confirm with `.\gradlew.bat --version` that the "Daemon JVM" is 25.
 
 ## Installation (to play)
 
-1. Install **Fabric Loader** ≥ 0.18.4 for Minecraft 1.21.11.
-2. Download **Fabric API** for 1.21.11 and drop it into `mods/`.
+1. Install **Fabric Loader** ≥ 0.19.3 for Minecraft 26.1.2 or 26.2.
+2. Download **Fabric API** for your target version and drop it into
+   `mods/` (`0.152.1+26.1.2` or `0.152.2+26.2` at the time of this
+   writing — always check [fabricmc.net/develop](https://fabricmc.net/develop)
+   for the current recommended build).
 3. Build the mod (see below) or drop the already-built `.jar` into `mods/`.
-4. Launch the Fabric 1.21.11 profile.
+4. Launch the corresponding Fabric profile (26.1.2 or 26.2).
 
 ## Building
 
@@ -162,10 +184,12 @@ The resulting `.jar` appears at `build/libs/keybindfix-1.0.0.jar`.
 ## Possible issues
 
 - **Compile error in the mixin due to a wrong signature**:
-  `HandledScreenAccessor` only references `focusedSlot` and `onMouseClick`,
-  two members that have been very stable for many versions. If it still
-  fails, run `genSources` (see above) to confirm the exact field/method
-  name.
+  `AbstractContainerScreenAccessor` only references `hoveredSlot` and
+  `slotClicked`, two members that have been very stable for many
+  versions. If it still fails, run `./gradlew genSources` and open the
+  generated `AbstractContainerScreen` class (under `build/loom-cache`, or
+  via your IDE after importing the project) to confirm the exact
+  field/method name in the version you're building against.
 - **Nothing happens when pressing the key**: check that the assigned key
   isn't already conflicting with another keybind (Minecraft warns with a
   ⚠️ on the Controls screen).
