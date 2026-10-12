@@ -5,7 +5,7 @@
   "name": "KeybindFix",
   "description": "Corrige bugs vanilla de Minecraft relacionados con asignar teclas de teclado (no ratón) a 'Usar Objeto/Colocar Bloque' y 'Seleccionar Bloque' dentro de pantallas de inventario. Arregla MC-117771, MC-577 y MC-19433.",
   "authors": [
-    "Edurne"
+    "ErNaxho"
   ],
   "contact": {},
   "license": "MIT",
